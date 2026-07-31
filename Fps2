@@ -1,0 +1,181 @@
+-- ===================================================
+-- One-Tap FPS + Aimbot + ESP Wallhack (Rayfield UI)
+-- Complete Script
+-- ===================================================
+
+-- 1. โหลด Rayfield UI Library
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+-- 2. สร้าง Window หลัก
+local Window = Rayfield:CreateWindow({
+   Name = "One-Tap FPS Hub | Rayfield",
+   LoadingTitle = "กำลังโหลดสคริปต์เต็มรูปแบบ...",
+   LoadingSubtitle = "by Assistant",
+   ConfigurationSaving = { Enabled = false },
+   KeySystem = false
+})
+
+-- 3. ตั้งค่าบริการและตัวแปรหลัก
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+local Settings = {
+    OneTapEnabled = true,
+    AimbotEnabled = false,
+    TargetPart = "Head",
+    FOVSize = 150,
+    ShowFOV = true,
+    ESPEnabled = false
+}
+
+-- 4. สร้าง FOV Circle สำหรับ Aimbot
+local FOVCircle = Drawing.new("Circle")
+FOVCircle.Color = Color3.fromRGB(255, 50, 50)
+FOVCircle.Thickness = 1.5
+FOVCircle.NumSides = 60
+FOVCircle.Radius = Settings.FOVSize
+FOVCircle.Filled = false
+FOVCircle.Visible = Settings.ShowFOV
+
+-- 5. สร้าง Tab บน Rayfield UI
+local MainTab = Window:CreateTab("Main", 4483362458)
+local AimTab = Window:CreateTab("Aimbot", 4483362458)
+local VisualTab = Window:CreateTab("ESP (มองทะลุ)", 4483362458)
+
+-- ==================== TAB 1: MAIN ====================
+MainTab:CreateSection("One-Tap System")
+
+MainTab:CreateToggle({
+   Name = "Enable One-Tap Mode (ยิงทีละนัด)",
+   CurrentValue = true,
+   Callback = function(Value)
+       Settings.OneTapEnabled = Value
+   end,
+})
+
+-- ==================== TAB 2: AIMBOT ====================
+AimTab:CreateSection("Aimbot Options")
+
+AimTab:CreateToggle({
+   Name = "Enable Aimbot (ล็อกเป้าอัตโนมัติ)",
+   CurrentValue = false,
+   Callback = function(Value)
+       Settings.AimbotEnabled = Value
+   end,
+})
+
+AimTab:CreateDropdown({
+   Name = "Target Part (ตำแหน่งที่จะล็อก)",
+   Options = {"Head", "HumanoidRootPart"},
+   CurrentOption = {"Head"},
+   MultipleOptions = false,
+   Callback = function(Option)
+       Settings.TargetPart = Option[1]
+   end,
+})
+
+AimTab:CreateToggle({
+   Name = "Show FOV Circle (แสดงวงกลมล็อก)",
+   CurrentValue = true,
+   Callback = function(Value)
+       Settings.ShowFOV = Value
+       FOVCircle.Visible = Value
+   end,
+})
+
+AimTab:CreateSlider({
+   Name = "FOV Radius (รัศมีวงกลม)",
+   Range = {50, 500},
+   Increment = 10,
+   CurrentValue = 150,
+   Callback = function(Value)
+       Settings.FOVSize = Value
+       FOVCircle.Radius = Value
+   end,
+})
+
+-- ==================== TAB 3: ESP ====================
+VisualTab:CreateSection("Player ESP (แสดงตำแหน่งผู้เล่น)")
+
+VisualTab:CreateToggle({
+   Name = "Enable Wallhack ESP (มองเห็นตัวผู้เล่นทะลุกำแพง)",
+   CurrentValue = false,
+   Callback = function(Value)
+       Settings.ESPEnabled = Value
+       if not Value then
+           -- ลบไฟเรืองแสงออกเมื่อปิดการใช้งาน
+           for _, plr in pairs(Players:GetPlayers()) do
+               if plr.Character and plr.Character:FindFirstChild("ESPHighlight") then
+                   plr.Character.ESPHighlight:Destroy()
+               end
+           end
+       end
+   end,
+})
+
+-- 6. ฟังก์ชันค้นหาศัตรูที่อยู่ใกล้เป้าเม้าส์มากที่สุด
+local function GetClosestPlayer()
+    local closestPlayer = nil
+    local shortestDistance = Settings.FOVSize
+
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild(Settings.TargetPart) and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then
+            local targetPart = player.Character[Settings.TargetPart]
+            local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
+            
+            if onScreen then
+                local mousePos = UserInputService:GetMouseLocation()
+                local distance = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
+                
+                if distance < shortestDistance then
+                    closestPlayer = targetPart
+                    shortestDistance = distance
+                end
+            end
+        end
+    end
+    return closestPlayer
+end
+
+-- 7. Loop การทำงานหลักแบบ Real-time
+RunService.RenderStepped:Connect(function()
+    -- อัปเดตตำแหน่งวงกลม FOV ตามเม้าส์
+    FOVCircle.Position = UserInputService:GetMouseLocation()
+
+    -- ระบบ Aimbot ล็อกเป้าเมื่อกดคลิกซ้าย
+    if Settings.AimbotEnabled and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
+        local target = GetClosestPlayer()
+        if target then
+            Camera.CFrame = CFrame.new(Camera.CFrame.Position, target.Position)
+        end
+    end
+
+    -- ระบบ ESP มองทะลุกำแพง
+    if Settings.ESPEnabled then
+        for _, plr in pairs(Players:GetPlayers()) do
+            if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+                local char = plr.Character
+                if not char:FindFirstChild("ESPHighlight") then
+                    local highlight = Instance.new("Highlight")
+                    highlight.Name = "ESPHighlight"
+                    highlight.FillColor = Color3.fromRGB(255, 50, 50) -- สีแดง
+                    highlight.OutlineColor = Color3.fromRGB(255, 255, 255) -- เส้นขอบสีขาว
+                    highlight.FillTransparency = 0.5
+                    highlight.OutlineTransparency = 0
+                    highlight.Parent = char
+                end
+            end
+        end
+    end
+end)
+
+-- แจ้งเตือนเมื่อโหลดสคริปต์สำเร็จ
+Rayfield:Notify({
+   Title = "สำเร็จ!",
+   Content = "สคริปต์ One-Tap + Aimbot + ESP พร้อมใช้งานแล้ว",
+   Duration = 3,
+   Image = 4483362458,
+})
